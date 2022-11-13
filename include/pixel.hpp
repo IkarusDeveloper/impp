@@ -25,7 +25,7 @@ SOFTWARE.
 #ifndef INCLUDE_PIXEL_IMPLEMENTATION_HPP
 #define INCLUDE_PIXEL_IMPLEMENTATION_HPP
 #include <type_traits>
-
+#include <vector>
 
 namespace impp
 {
@@ -39,6 +39,28 @@ namespace impp
 	template<class pixel>
 	constexpr bool pixel_is32bit = std::is_same_v<pixel, pixel32rgba> || std::is_same_v<pixel, pixel32bgra>;
 
+	namespace detail{
+		template<class pixel>
+		struct pixel_brg_cast;
+		template<>
+		struct pixel_brg_cast<pixel24rgb> {
+			using type = pixel24bgr;
+		};
+		template<>
+		struct pixel_brg_cast<pixel24bgr> {
+			using type = pixel24bgr;
+		};
+		template<>
+		struct pixel_brg_cast<pixel32rgba> {
+			using type = pixel32bgra;
+		};
+		template<>
+		struct pixel_brg_cast<pixel32bgra> {
+			using type = pixel32bgra;
+		};
+	}
+	template<class pixel>
+	using pixel_bgr_cast = detail::pixel_brg_cast<pixel>::type;
 
 #pragma pack(push, 1)
 
@@ -85,6 +107,7 @@ namespace impp
 	};
 #pragma pack(pop)
 
+	// various pixel casting
 	namespace detail
 	{
 		template<class pixelfrom, class pixelto, std::enable_if_t<
@@ -165,6 +188,7 @@ namespace impp
 	template<class pixel, std::enable_if_t<!std::is_same_v<pixel32bgra, pixel>, int>>
 	void pixel32bgra::from(const pixel& from) { pixel_cast(from, *this); }
 
+	// various methods to convert pixels 
 	template<class pixelfrom, class pixelto,
 		std::enable_if_t<!std::is_same_v<pixelfrom, pixelto>, int> = 0>
 	void pixel_convert(std::vector<uint8_t>* bytes, int pcount) {
@@ -185,6 +209,17 @@ namespace impp
 		auto* pto = to.data();
 		for (size_t i = 0; i < from.size(); i++, pfrom++, pto++)
 			pto->from(*pfrom);
+	}
+
+	template<class pixelto, class pixelfrom,
+		std::enable_if_t<!std::is_same_v<pixelfrom, pixelto>, int> = 0>
+	std::vector<pixelto> pixel_convert(const std::vector<pixelfrom>& from) {
+		std::vector<pixelto> to(from.size());
+		auto* pfrom = from.data();
+		auto* pto = to.data();
+		for (size_t i = 0; i < from.size(); i++, pfrom++, pto++)
+			pto->from(*pfrom);
+		return to;
 	}
 
 	template<class pixelfrom, class pixelto,
