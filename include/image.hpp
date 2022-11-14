@@ -22,8 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #pragma once
-#ifndef INCLUDE_IMAGE_IMPLEMENTATION_HPP
-#define INCLUDE_IMAGE_IMPLEMENTATION_HPP
+#ifndef INCLUDE_IMPLUSPLUS_IMAGE_HPP
+#define INCLUDE_IMPLUSPLUS_IMAGE_HPP
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -56,10 +56,10 @@ namespace impp
 		image(image&& r);
 		image& operator=(const image&) = default;
 		image& operator=(image&&) = default;
-		
+
 		bool empty() const { return pixels.empty(); }
 		const uint8_t* get_bytes() const { return reinterpret_cast<const uint8_t*>(pixels.data()); }
-		
+
 		void set_orientation(orientation_value ort);
 		void set_pixel(size x, size y, const pixel& color);
 		const pixel* get_pixel(size x, size y) const;
@@ -198,6 +198,13 @@ namespace impp
 		for(size_t py = 0; py < height; py++, from += width, to += width)
 			std::reverse(from, to);
 	}
+
+	template<class pixelto, class pixelfrom>
+	image<pixelto> image_convert(const image<pixelfrom>& source)
+	{
+		auto pixels = pixel_convert<pixelto>(source.pixels);
+		return image<pixelto>::create(source.width, source.height, std::move(pixels));
+	}
 }
 
-#endif //INCLUDE_IMAGE_IMPLEMENTATION_HPP
+#endif //INCLUDE_IMPLUSPLUS_IMAGE_HPP

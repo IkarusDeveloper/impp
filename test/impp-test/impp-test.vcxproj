@@ -146,6 +146,10 @@
     <ClCompile Include="impp-test.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\bmp.hpp" />
+    <ClInclude Include="..\..\include\decoder.hpp" />
+    <ClInclude Include="..\..\include\encoder.hpp" />
+    <ClInclude Include="..\..\include\error.hpp" />
     <ClInclude Include="..\..\include\image.hpp" />
     <ClInclude Include="..\..\include\pixel.hpp" />
     <ClInclude Include="..\..\include\tga.hpp" />

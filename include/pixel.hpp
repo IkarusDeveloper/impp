@@ -22,8 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #pragma once
-#ifndef INCLUDE_PIXEL_IMPLEMENTATION_HPP
-#define INCLUDE_PIXEL_IMPLEMENTATION_HPP
+#ifndef INCLUDE_IMPLUSPLUS_PIXEL_HPP
+#define INCLUDE_IMPLUSPLUS_PIXEL_HPP
 #include <type_traits>
 #include <vector>
 
@@ -64,7 +64,7 @@ namespace impp
 
 #pragma pack(push, 1)
 
-	struct pixel24rgb 
+	struct pixel24rgb
 	{
 		uint8_t r;
 		uint8_t g;
@@ -74,7 +74,7 @@ namespace impp
 		void from(const pixel& from);
 	};
 
-	struct pixel24bgr 
+	struct pixel24bgr
 	{
 		uint8_t b;
 		uint8_t g;
@@ -84,7 +84,7 @@ namespace impp
 		void from(const pixel& from);
 	};
 
-	struct pixel32rgba 
+	struct pixel32rgba
 	{
 		uint8_t r;
 		uint8_t g;
@@ -95,7 +95,7 @@ namespace impp
 		void from(const pixel& from);
 	};
 
-	struct pixel32bgra 
+	struct pixel32bgra
 	{
 		uint8_t b;
 		uint8_t g;
@@ -131,7 +131,7 @@ namespace impp
 
 		template<class pixelfrom, class pixelto, std::enable_if_t<
 			pixel_is24bit<pixelfrom> && pixel_is32bit<pixelto>, int> = 0>
-		void pixel24to32(const pixelfrom& from, pixelto& to) 
+		void pixel24to32(const pixelfrom& from, pixelto& to)
 		{
 			to.a = UINT8_MAX;
 			to.b = from.b;
@@ -188,7 +188,7 @@ namespace impp
 	template<class pixel, std::enable_if_t<!std::is_same_v<pixel32bgra, pixel>, int>>
 	void pixel32bgra::from(const pixel& from) { pixel_cast(from, *this); }
 
-	// various methods to convert pixels 
+	// various methods to convert pixels
 	template<class pixelfrom, class pixelto,
 		std::enable_if_t<!std::is_same_v<pixelfrom, pixelto>, int> = 0>
 	void pixel_convert(std::vector<uint8_t>* bytes, int pcount) {
@@ -229,4 +229,4 @@ namespace impp
 			to->from(*from);
 	}
 }
-#endif //INCLUDE_PIXEL_IMPLEMENTATION_HPP
+#endif //INCLUDE_IMPLUSPLUS_PIXEL_HPP
