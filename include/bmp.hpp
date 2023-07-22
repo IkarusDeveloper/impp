@@ -109,11 +109,7 @@ namespace impp
                     if (iheader.compression != BMP_COMPRESSION_RGB && iheader.compression != BMP_COMPRESSION_RLE4 && iheader.compression != BMP_COMPRESSION_RLE8)
                         throw std::runtime_error("invalid bitmap info header.compression: it must be one of the following values - 0,1,2 for bitmap using 1/4/8 bpp");
 
-                //todebug
-                std::printf("diocane bitcount = %u\n", iheader.bitcount);
-                std::printf("diocane compression = %u\n", iheader.compression);
-                std::printf("diocane compsize = %u\n", iheader.compsize);
-
+               
             }
         }
 

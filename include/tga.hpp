@@ -67,15 +67,15 @@ namespace impp
 
 		namespace detail
 		{
-			template<class pixelfrom, class pixelto, class palette_type>
-			void tga_load_compressed_paletted(decoder& decoder, const uint8_t* colormap, pixelto* pxto, size_t size)
+			template<pixel_type pixelfrom, pixel_type pixelto, class palette_type>
+			void tga_load_paletted(decoder& decoder, const uint8_t* colormap, pixelto* pxto, size_t size)
 			{
 				const auto* map_pixels = reinterpret_cast<const pixelfrom*>(colormap);
 				for (size_t i = 0; i < size; i++, pxto++)
 					pxto->from(map_pixels[decoder.read<palette_type>()]);
 			}
 
-			template<class pixelfrom, class pixelto>
+			template<pixel_type pixelfrom, pixel_type pixelto>
 			void tga_load_compressed_true_color(decoder& decoder, pixelto* pxto, size_t size)
 			{
 				size_t i, j, pcount;
@@ -101,7 +101,7 @@ namespace impp
 				}
 			}
 
-			template<class pixelfrom, class pixelto>
+			template<pixel_type pixelfrom, pixel_type pixelto>
 			void tga_load_uncompressed_true_color(decoder& decoder, pixelto* pxto, size_t size)
 			{
 				const auto* pxfrom = decoder.peek<pixelfrom>();
@@ -109,10 +109,9 @@ namespace impp
 				pixel_convert(pxfrom, pxto, size);
 			}
 
-			template<class pixel>
-			inline bool tga_load_memory(const uint8_t* data, size_t size, typename image<pixel>::size* width, typename image<pixel>::size* height, typename image<pixel>::size* bpp, std::vector<pixel>* pixels, tga_header* pheader = nullptr)
+			template<pixel_type pixel, class imagesize = image<pixel>::size>
+			inline bool tga_load_memory(const uint8_t* data, size_t size, imagesize* width, imagesize* height, imagesize* bpp, std::vector<pixel>* pixels, tga_header* pheader = nullptr)
 			{
-				using imagesize = image<pixel>::size;
 				auto decoder = decoder::create(data, size);
 				const auto& header = decoder.read<tga_header>();
 
@@ -122,36 +121,39 @@ namespace impp
 				if(header.idlen != 0)
 					decoder.proceed_reading(header.idlen);
 
-				const imagesize colormap_element_size = header.colormap_entrysize / 8;
-				const imagesize colormap_size = header.colormap_type == 1 ? header.colormap_len * colormap_element_size : 0;
-				const uint8_t* colormap = decoder.peek<uint8_t>();
+				// extracting color map info
+				const auto cmap_entry_size = header.colormap_entrysize / 8;
+				const auto cmap_size = header.colormap_type == 1 ? header.colormap_len * cmap_entry_size : 0;
+				const auto cmap = decoder.peek<uint8_t>();
 
-				if (decoder.get_readable() < colormap_size)
+				if (decoder.get_readable() < cmap_size)
 					return false;
 
-				const imagesize pixelcount = static_cast<imagesize>(header.width) * static_cast<imagesize>(header.height);
-				const imagesize pixelsize = header.colormap_len == 0 ? (header.bits / 8) : colormap_element_size;
-				const imagesize datasize = decoder.get_readable() - colormap_size;
-				const imagesize imgsize = pixelcount * pixelsize;
+				const auto pcount = static_cast<imagesize>(header.width) * static_cast<imagesize>(header.height);
+				const auto psize = header.colormap_type == 0 ? (header.bits / 8) : cmap_entry_size;
+				const auto dsize = decoder.get_readable() - cmap_size;
+				const auto isize = pcount * psize;
 
 				// handling mapped images
 				if (header.colormap_type == 1){
-					// ACTUALLY:
 					// supported mapped images can only use 16bit or 8bit palette
 					if (header.bits != 8 && header.bits != 16)
 						return false;
-					if (header.bits * pixelcount < datasize)
+					if (header.bits * pcount < dsize)
 						return false;
 
-					decoder.proceed_reading(colormap_size);
+					decoder.proceed_reading(cmap_size);
 				}
 
-				// ACTUALLY:
 				// supported images can only use 24bit or 32bit pixels
-				if(pixelsize != 3 && pixelsize != 4)
+				if(psize != 3 && psize != 4)
 					return false;
 
-				std::vector<pixel> temp_pixel(pixelcount);
+				// allocating temp pixels
+				std::vector<pixel> temp_pixel;
+				temp_pixel.resize(pcount);
+
+				// getting pixel pointer
 				auto bytes = temp_pixel.data();
 
 				switch (header.image_type)
@@ -159,21 +161,21 @@ namespace impp
 
 				case TGA_UNCOMPRESSED_MAPPED: // Uncompressed paletted
 				{
-					switch (pixelsize) 
+					switch (psize) 
 					{
 					case 3:
 						switch (header.bits)
 						{
-						case 8:  tga_load_compressed_paletted<pixel24bgr, pixel, uint8_t>(decoder, colormap, bytes, pixelcount); break;
-						case 16: tga_load_compressed_paletted<pixel24bgr, pixel, uint16_t>(decoder, colormap, bytes, pixelcount); break;
+						case 8:  tga_load_paletted<pixel24bgr, pixel, uint8_t>(decoder, cmap, bytes, pcount); break;
+						case 16: tga_load_paletted<pixel24bgr, pixel, uint16_t>(decoder, cmap, bytes, pcount); break;
 						}
 						break;
 
 					case 4:
 						switch (header.bits)
 						{
-						case 8:  tga_load_compressed_paletted<pixel32bgra, pixel, uint8_t>(decoder, colormap, bytes, pixelcount); break;
-						case 16: tga_load_compressed_paletted<pixel32bgra, pixel, uint16_t>(decoder, colormap, bytes, pixelcount); break;
+						case 8:  tga_load_paletted<pixel32bgra, pixel, uint8_t>(decoder, cmap, bytes, pcount); break;
+						case 16: tga_load_paletted<pixel32bgra, pixel, uint16_t>(decoder, cmap, bytes, pcount); break;
 						}
 						break;
 					}
@@ -184,13 +186,13 @@ namespace impp
 				case TGA_UNCOMPRESSED_RGB: // Uncompressed TrueColor
 				{
 					// mismatching between remaining bytes and pixel space
-					if (datasize < imgsize)
+					if (dsize < isize)
 						return false;
 
-					switch(pixelsize)
+					switch(psize)
 					{
-					case 3: tga_load_uncompressed_true_color<pixel24bgr, pixel>(decoder, bytes, pixelcount); break;
-					case 4: tga_load_uncompressed_true_color<pixel32bgra, pixel>(decoder, bytes, pixelcount); break;
+					case 3: tga_load_uncompressed_true_color<pixel24bgr, pixel>(decoder, bytes, pcount); break;
+					case 4: tga_load_uncompressed_true_color<pixel32bgra, pixel>(decoder, bytes, pcount); break;
 					}
 
 					break;
@@ -201,8 +203,8 @@ namespace impp
 				{
 					switch (header.bits)
 					{
-					case 24: tga_load_compressed_true_color<pixel24bgr, pixel>(decoder, bytes, pixelcount); break;
-					case 32: tga_load_compressed_true_color<pixel32bgra, pixel>(decoder, bytes, pixelcount); break;
+					case 24: tga_load_compressed_true_color<pixel24bgr, pixel>(decoder, bytes, pcount); break;
+					case 32: tga_load_compressed_true_color<pixel32bgra, pixel>(decoder, bytes, pcount); break;
 					}
 
 					break;
@@ -214,12 +216,12 @@ namespace impp
 
 				*width = header.width;
 				*height = header.height;
-				*bpp = static_cast<int>(pixelsize);
+				*bpp = static_cast<int>(psize);
 				*pixels = std::move(temp_pixel);
 				return true;
 			}
 
-			template<class pixel>
+			template<pixel_type pixel>
 			inline bool tga_load(const char* filename, typename image<pixel>::size* width, typename image<pixel>::size* height, typename image<pixel>::size* bpp, std::vector<pixel>* bytes, tga_header* header = nullptr)
 			{
 				std::ifstream f(filename, std::ios::binary | std::ios::ate);
@@ -235,9 +237,107 @@ namespace impp
 
 				return tga_load_memory(buffer.get(), size, width, height, bpp, bytes, header);
 			}
+
+			template<class palette_type = uint16_t, class imagetype, pixel_type pixelfrom = typename imagetype::pixel, pixel_type pixelto = pixel_bgr_cast<pixelfrom>>
+			std::tuple<std::vector<pixelto>, std::vector<palette_type>> make_mapped_data(const imagetype& source){
+				// making palette
+				std::unordered_map<pixelfrom, palette_type> colormap;
+				std::vector<pixelto> colortable;
+
+				// making data vector
+				std::vector<palette_type> data;
+				data.reserve(source.pixels.size());
+
+				for(auto& pixel : source.pixels)
+				{
+					// searching for known colors
+					auto iter = colormap.find(pixel);
+					if(iter != colormap.end()){
+						data.emplace_back(iter->second);
+						continue;
+					}
+					
+					// registering a new color
+					const auto pfx = pixel_cast<pixelto>(pixel);
+					data.emplace_back(static_cast<palette_type>(colortable.size()));
+					colormap[pixel] = colortable.size();
+					colortable.emplace_back(pfx);
+				}
+
+				return std::make_tuple(colortable, data);
+			}
+
+			template<class imagetype, pixel_type pixel = typename imagetype::pixel, pixel_type pixelto = pixel_bgr_cast<pixel>>
+			std::vector<uint8_t> rle_compress_pixels(const imagetype& source){
+				static auto single_rle_chunk = [](auto iter, auto end, auto& ret){
+					// at least 1 element is required
+					if(iter == end)
+						return end;
+
+					// searching for equality
+					auto next = std::next(iter);
+					for(;next != end && std::distance(iter, next) < 128; next++){
+						if(*next != *iter)
+							break;
+					}
+
+					const auto eqcount = std::distance(iter, next);
+					if(eqcount > 1)
+					{
+						// encoding header
+						const uint8_t eqheader = static_cast<uint8_t>(eqcount-1) | 0x80;
+						ret.emplace_back(eqheader);
+
+						// encoding color
+						auto color = pixel_cast<pixelto>(*iter);
+						const auto& view = pixel_bytes_view(color);
+
+						for(const auto& b : view)
+							ret.emplace_back(b);
+						
+						return next;
+					}
+
+					// no equality means raw packet is being appended
+					next = std::next(iter);
+					auto prev = iter;
+
+					for (; next != end && std::distance(iter, next) < 128; next++, prev = next) {
+						if (*next == *prev)
+							break;
+					}
+
+					// encoding header
+					const auto count = std::distance(iter, next);
+					const uint8_t header = static_cast<uint8_t>(count-1);
+					ret.emplace_back(header);
+
+					// encoding colors
+					for(; iter != next && iter != end; iter++)
+					{
+						auto color = pixel_cast<pixelto>(*iter);
+						const auto& view = pixel_bytes_view(color);
+
+						for (auto& b : view)
+							ret.emplace_back(b);
+					}
+
+					return next;
+				};
+
+				auto iter = source.pixels.begin();
+				auto end = source.pixels.end();
+				
+				// encoding into buffer
+				std::vector<uint8_t> ret{};
+				while(iter != end)
+					iter = single_rle_chunk(iter, end, ret);
+
+				return ret;
+			}
 		}
 
-		template<class pixel>
+		template<pixel_type pixel>
 		inline image<pixel> load(const std::string& filename) {
 			typename image<pixel>::pixelvec pixels{};
 			typename image<pixel>::size width = 0, height = 0, bpp = 0;
@@ -255,7 +355,7 @@ namespace impp
 			}
 		}
 
-		template<class pixel>
+		template<pixel_type pixel>
 		inline image<pixel> load_memory(const void* memory, size_t size) {
 			auto* data = reinterpret_cast<const uint8_t*>(memory);
 			typename image<pixel>::size width = 0, height = 0, bpp = 0;
@@ -275,55 +375,104 @@ namespace impp
 			}
 		}
 
+		template<tga_type type, pixel_type pixel>
+		constexpr uint8_t detect_bits(){
+			if(type == tga_type::TGA_UNCOMPRESSED_MAPPED)
+				return 16;
+			return pixel_is24bit<pixel> ? 24 : 32;
+		}
+
 		template<tga_type type, class imagetype>
 		tga_header detect_header(const imagetype& source){
 			using pixel = imagetype::pixel;
 
 			tga_header header{};
-			header.bits = pixel_is24bit<pixel> ? 24 : 32;
-			header.colormap_type = 0;
+			header.bits = detect_bits<type, pixel>();
+			header.colormap_type = type == tga_type::TGA_UNCOMPRESSED_MAPPED ? 1 : 0;
+			header.colormap_entrysize = pixel_is24bit<pixel> ? 24 : 32;
+			header.colormap_origin = tga_type::TGA_UNCOMPRESSED_MAPPED ? sizeof(header) : 0;
 			header.height = static_cast<uint16_t>(source.height);
 			header.width = static_cast<uint16_t>(source.width);
 			header.idlen = 0;
 			header.imagedesc = pixel_is24bit<pixel> ? 0 : 8;
 			header.image_type = type;
 			return header;
-		}
+		}		
 
-		template<class pixel, tga_type type = tga_type::TGA_RLE_RBG>
-		inline bool save(const image<pixel>& source, const std::string& filename)
+		template<tga_type type = tga_type::TGA_UNCOMPRESSED_RGB, pixel_type pixel, encoder_type encoder>
+		inline bool save_to_encoder(const image<pixel>& source, encoder& enc)
 		{
 			using pixel_dest = pixel_bgr_cast<pixel>;
+
+			enc.reset();
+			if constexpr (type == tga_type::TGA_NONE)
+				return false;
+
+			// writing header detecting it
+			auto header = detect_header<type>(source);
+
+			// handling mapped images
+			if constexpr (type == tga_type::TGA_UNCOMPRESSED_MAPPED)
+			{
+				auto [colortable, pixels] = detail::make_mapped_data(source);
+				header.colormap_len = colortable.size();
+
+				enc.write(header);
+				enc.write_pixels(colortable);
+				enc.write(pixels.data(), pixels.size() * sizeof(pixels[0]));
+				return true;
+			}
+
+			// handling RLE images
+			else if constexpr (type == tga_type::TGA_RLE_RBG)
+			{
+				auto compressed_pixels = detail::rle_compress_pixels(source);
+				enc.write(header);
+				enc.write(compressed_pixels.data(), compressed_pixels.size());
+				return true;
+			}
+
+			// handling uncompressed rgb
+			else if constexpr (type == tga_type::TGA_UNCOMPRESSED_RGB)
+			{
+				enc.write(header);
+				if constexpr (std::is_same_v<pixel, pixel_dest>)
+					enc.write_pixels(source.pixels);
+				else
+					enc.write_pixels(
+						pixel_convert<pixel_dest>(source.pixels));
+				return true;
+			}
+
+			return false;
+		}
+
+		template<tga_type type = tga_type::TGA_UNCOMPRESSED_RGB, pixel_type pixel>
+		inline bool save_to_file(const image<pixel>& source, const std::string& filename)
+		{
 			try
 			{
 				// using encoder to write output file
-				auto enc = encoder::create(filename);
+				auto enc = file_encoder::create(filename);
 				if(!enc.is_open())
 					return false;
 
-				// writing header detecting it
-				enc.write(detect_header<type>(source));
+				return save_to_encoder<type>(source, enc);
+			}
 
-				// making and writing color table
-				auto colortable = detail::make_colortable<type>(source);
-				if(!colortable.empty())
-					enc.write(colortable.data(), colortable.size() * sizeof(colortable[0]));
+			catch(const std::runtime_error& error)
+			{
+				error::detail::on_error(error);
+				return false;
+			}
+		}
 
-
-				// if no conversion is required
-				if constexpr (std::is_same_v<pixel, pixel_dest>)
-				{
-					// if no compression is required
-					enc.write_pixels(source.pixels);
-				}
-
-				// if conversion is required
-				else
-				{
-					auto pixels = pixel_convert<pixel_dest>(source.pixels);
-					enc.write_pixels();
-				}
-				return true;
+		template<tga_type type = tga_type::TGA_UNCOMPRESSED_RGB, pixel_type pixel>
+		inline bool save_to_memory(const image<pixel>& source, memory_encoder& encoder)
+		{
+			try
+			{
+				return save_to_encoder<type>(source, encoder);
 			}
 
 			catch(const std::runtime_error& error)
