@@ -18,7 +18,7 @@ namespace impp
 				static inline error_handler _handler = error_handling::default_throw_wrapper;
 			};
 
-			void on_error(const std::runtime_error& err)
+			inline void on_error(const std::runtime_error& err)
 			{
 				if(error_handling::_handler)
 					error_handling::_handler(err);
@@ -26,7 +26,7 @@ namespace impp
 		}
 
 		//method used to set an error handler - it can be an empty function used to silence errors
-		void set_error_handler(error_handler func)
+		inline void set_error_handler(error_handler func)
 		{
 			detail::error_handling::_handler = func;
 		}
